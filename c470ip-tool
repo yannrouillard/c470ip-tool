@@ -382,9 +382,10 @@ def google_sync(args):
     contacts = google_contacts.get_contacts()
 
     try:
-        verbose('Deleting existing contacts...', not args.quiet)
-        nb_contacts = c470ip_phone.delete_contacts()
-        verbose("done.\n", not args.quiet)
+        if args.overwrite:
+            verbose('Deleting existing contacts...', not args.quiet)
+            nb_contacts = c470ip_phone.delete_contacts()
+            verbose("done.\n", not args.quiet)
 
         verbose('Synchronizing contacts...', not args.quiet)
         nb_contacts = c470ip_phone.add_contacts(contacts)
@@ -399,6 +400,16 @@ parser = argparse.ArgumentParser(
     description='Gigaset C470IP Phone management tool')
 parser.add_argument('--quiet', dest='quiet', action="store_true",
                     help='enable silent mode')
+parser.add_argument(
+    'c470ip_url',
+    metavar='C470IP_URL',
+    help='url of the Gigaset C470 IP web interface')
+parser_google_sync.add_argument(
+    '--pin',
+    dest='c470ip_pin',
+    default='0000',
+    help='Pin code of the C470 IP phone')
+
 subparser = parser.add_subparsers(title='subcommands', dest='commands')
 
 # google-sync command options
@@ -407,20 +418,17 @@ parser_google_sync = subparser.add_parser(
     help='Synchronize Google Contacts with the Gigaset C470 IP address '
     'book')
 parser_google_sync.add_argument(
-    'c470ip_url',
-    metavar='C470IP_URL',
-    help='url of the Gigaset C470 IP web interface')
-parser_google_sync.add_argument(
     '--force-google-auth',
     dest='force_google_auth',
     action='store_true',
     help='Force to pass again through the Google OAuth autorization '
          'process')
 parser_google_sync.add_argument(
-    '--pin',
-    dest='c470ip_pin',
-    default='0000',
-    help='Pin code of the C470 IP phone')
+    '--overwrite',
+    dest='overwrite',
+    action='store_true',
+    help='if set, the existing phone address book will be erased before '
+         'adding the new contacts')
 parser_google_sync.set_defaults(func=google_sync)
 
 args = parser.parse_args()
