@@ -143,6 +143,15 @@ class OAuth2DeviceToken(gdata.gauth.OAuth2Token):
             f.write(simplejson.dumps(state))
 
 
+class C470ipLoginError(Exception):
+    def __init__(self, error_code):
+        self.error_code = int(error_code)
+
+
+class C470ipSessionAlreadyRunning(C470ipLoginError):
+    pass
+
+
 class C470ipPhone(object):
     """ The C470ipPhone object implements the operations than can be
         performed on the Gigaset C470IP phone through the web interface.
@@ -171,6 +180,10 @@ class C470ipPhone(object):
     UPLOAD_ADDRESS_BOOK = '2'
     DELETE_ADDRESS_BOOK = '3'
 
+    # list of error codes  
+    SESSION_RUNNING_ERROR = 2
+    LANG_DOWNLOAD_RUNNING = 160
+
     def __init__(self, url, pin):
         """
         """
@@ -186,10 +199,26 @@ class C470ipPhone(object):
         """Performs a login operation on the phone web interface.
         """
 
-        self.browser.open(self.url)
+        response = self.browser.open(self.url)
         self.browser.select_form(name='gigaset')
         self.browser['password'] = self.pin
-        self.browser.submit()
+        response = self.browser.submit()
+        body = response.read()
+        match = re.search('var error = (?P<error>\d+);', body)
+        if match:
+            error_code = int(match.group('error'))
+            if error_code == SESSION_RUNNING_ERROR:
+                raise C470ipSessionAlreadyRunning(error_code)
+
+            elif error_code != LANG_DOWNLOAD_RUNNING:
+                raise C470ipLoginError(error_code)
+
+        elif not body.find('logout.html'):
+            raise C470ipLoginError(None)
+
+        # We are here if we got the LANG_DOWNLOAD_RUNNING error code.
+        # of we found the deconnection link on the page.
+        # Either way it means the login was successfull.
         self._logged = True
 
     def logout(self):
@@ -319,7 +348,7 @@ if os.getenv('CLIENT_ID'):
     OAUTH_CLIENT_ID = os.getenv('CLIENT_ID')
 
 if os.getenv('CLIENT_SECRET'):
-    OAUTH_CLIENT_ID = os.getenv('CLIENT_SECRET')
+    OAUTH_CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 
 
 def verbose(message, verbose_mode):
@@ -347,6 +376,13 @@ def google_sync(args):
     """google-sync command: synchronizes Google Contacts with the Gigaset
        C470 IP address book
     """
+    if not OAUTH_CLIENT_ID or not OAUTH_CLIENT_SECRET:
+        sys.stderr.write("ERROR: CLIENT_ID and CLIENT_SECRET environment "
+                         "variables must be defined to be able to use Google "
+                         "synchronisation\n")
+        sys.exit(5)
+
+
     google_contacts = GoogleContactsService(source=APP_NAME)
     c470ip_phone = C470ipPhone(args.c470ip_url, args.c470ip_pin)
 
@@ -460,4 +496,19 @@ parser_delete_contacts.add_argument(
 parser_delete_contacts.set_defaults(func=delete_contacts)
 
 args = parser.parse_args()
-args.func(args)
+
+try:
+    args.func(args)
+
+except C470ipSessionAlreadyRunning:
+    sys.stderr.write("\nERROR: A session is already opened on the C470 IP web "
+                     "interface.\n       Please logout the existing session "
+                     "or reset the phone.\n")
+    sys.exit(3)
+
+except C470ipLoginError as e:
+    sys.stderr.write("\nERROR: Failed to login in the C470 IP Web interface."
+                     " Error code: %i\n" % e.error_code)
+    sys.exit(4)
+
+
