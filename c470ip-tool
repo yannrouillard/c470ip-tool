@@ -330,6 +330,19 @@ def verbose(message, verbose_mode):
 
 ## sub-command definition
 
+def delete_contacts(args):
+    """delete-contacts command: Delete all the existing contacts from the
+       C470 IP address book
+    """
+    c470ip_phone = C470ipPhone(args.c470ip_url, args.c470ip_pin)
+    try:
+        verbose('Deleting existing contacts...', not args.quiet)
+        nb_contacts = c470ip_phone.delete_contacts()
+        verbose("done.\n", not args.quiet)
+    finally:
+        c470ip_phone.logout()
+
+
 def google_sync(args):
     """google-sync command: synchronizes Google Contacts with the Gigaset
        C470 IP address book
@@ -400,15 +413,6 @@ parser = argparse.ArgumentParser(
     description='Gigaset C470IP Phone management tool')
 parser.add_argument('--quiet', dest='quiet', action="store_true",
                     help='enable silent mode')
-parser.add_argument(
-    'c470ip_url',
-    metavar='C470IP_URL',
-    help='url of the Gigaset C470 IP web interface')
-parser_google_sync.add_argument(
-    '--pin',
-    dest='c470ip_pin',
-    default='0000',
-    help='Pin code of the C470 IP phone')
 
 subparser = parser.add_subparsers(title='subcommands', dest='commands')
 
@@ -417,6 +421,15 @@ parser_google_sync = subparser.add_parser(
     'google-sync',
     help='Synchronize Google Contacts with the Gigaset C470 IP address '
     'book')
+parser_google_sync.add_argument(
+    'c470ip_url',
+    metavar='C470IP_URL',
+    help='url of the Gigaset C470 IP web interface')
+parser_google_sync.add_argument(
+    '--pin',
+    dest='c470ip_pin',
+    default='0000',
+    help='Pin code of the C470 IP phone')
 parser_google_sync.add_argument(
     '--force-google-auth',
     dest='force_google_auth',
@@ -430,6 +443,21 @@ parser_google_sync.add_argument(
     help='if set, the existing phone address book will be erased before '
          'adding the new contacts')
 parser_google_sync.set_defaults(func=google_sync)
+
+# delete command options
+parser_delete_contacts = subparser.add_parser(
+    'delete-contacts',
+    help='Remove all the existing contacts from the phone')
+parser_delete_contacts.add_argument(
+    'c470ip_url',
+    metavar='C470IP_URL',
+    help='url of the Gigaset C470 IP web interface')
+parser_delete_contacts.add_argument(
+    '--pin',
+    dest='c470ip_pin',
+    default='0000',
+    help='Pin code of the C470 IP phone')
+parser_delete_contacts.set_defaults(func=delete_contacts)
 
 args = parser.parse_args()
 args.func(args)
